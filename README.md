@@ -1,10 +1,23 @@
 # Horizonte — PI VI
 
+[![CI](https://github.com/pedrobragabes/univesp-pi6-horizonte/actions/workflows/ci.yml/badge.svg)](https://github.com/pedrobragabes/univesp-pi6-horizonte/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/pedrobragabes/univesp-pi6-horizonte/actions/workflows/codeql.yml/badge.svg)](https://github.com/pedrobragabes/univesp-pi6-horizonte/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Plataforma distribuída e acessível de apoio à preparação comunitária para episódios de calor. O sistema integra telemetria experimental, avaliação explicável, registro auditável e comunicação operacional sem apresentar o protótipo como infraestrutura oficial ou dispositivo de saúde.
 
 O projeto é uma fundação para o **Projeto Integrador em Computação VI (PJI610)** ou **Projeto Integrador Extensionista VI**, conforme a matrícula. Ele cobre o núcleo comum dos PPCs de 2025 e 2026: hardware/software, serviços distribuídos, interface e UX, acessibilidade, testes e CI, viabilidade, modelagem de negócios, ética e impacto tecnológico.
 
 > Todos os nomes de zona e dados de demonstração são fictícios. Não existe parceiro, piloto público ou validação com usuários nesta etapa. Essas evidências deverão ser produzidas no semestre e jamais simuladas.
+
+## Estado
+
+| Dimensão | Situação |
+|---|---|
+| fundação técnica | concluída, com 7 testes distribuídos e release `v0.1.0-foundation` |
+| entrega acadêmica | pendente de parceiro, usuários, carga, cotações, relatório e vídeo |
+| dados | zonas e leituras exclusivamente demonstrativas |
+| implantação | arquitetura reproduzível local; produção não preparada |
 
 ## Produto
 
@@ -93,6 +106,8 @@ docs/         arquitetura, operação, validação, viabilidade, ética e revis�
 - [Viabilidade e modelo de negócio](docs/04-viabilidade.md)
 - [Ética e impacto](docs/05-etica-e-impacto.md)
 - [Revisão de código](docs/06-revisao-de-codigo.md)
+- [Modelo de relatório parcial](docs/07-relatorio-parcial.md)
+- [Modelo de relatório final](docs/08-relatorio-final.md)
 
 ## Limites para implantação
 
@@ -108,3 +123,7 @@ Os servidores Flask incluídos são de desenvolvimento. Um ambiente externo exig
 6. coletar cotações e validar o modelo operacional;
 7. registrar devolutiva e recomendação explícita de adotar, pilotar ou não adotar;
 8. produzir relatório final e vídeo conforme as regras vigentes.
+
+## Governança e licença
+
+As atividades devem ser acompanhadas por issues e milestones alinhados ao AVA. Consulte [SECURITY.md](SECURITY.md). O código usa [licença MIT](LICENSE); dados, comunicações e evidências de parceiros mantêm regras próprias.
