@@ -72,8 +72,8 @@ def create_app(service_key: str | None = None) -> Flask:
             return jsonify({"error": "Contrato de avaliação inválido."}), 422
         try:
             return jsonify(evaluate(payload["temperature_c"], payload["humidity_pct"]))
-        except (ValueError, TypeError) as error:
-            return jsonify({"error": str(error)}), 422
+        except (ValueError, TypeError):
+            return jsonify({"error": "Temperatura ou umidade inválida."}), 422
 
     return app
 
