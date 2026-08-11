@@ -226,8 +226,10 @@ def create_app(
                 "algorithm_version": assessment["algorithm_version"],
             })
             return jsonify(body), status
-        except (ValueError, OverflowError, OSError, RuntimeError, ServiceUnavailable) as error:
-            return jsonify({"error": str(error)}), 422 if isinstance(error, ValueError) else 503
+        except ValueError:
+            return jsonify({"error": "Leitura do dispositivo inválida."}), 422
+        except (OverflowError, OSError, RuntimeError, ServiceUnavailable):
+            return jsonify({"error": "Serviço temporariamente indisponível."}), 503
 
     @app.get("/api/status")
     def api_status():
