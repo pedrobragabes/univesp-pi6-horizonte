@@ -1,0 +1,1 @@
+"""Contratos compartilhados do Horizonte."""

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Horizonte: preparação comunitária para episódios de calor.">
+  <title>Horizonte | Informação para agir</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+  <header><a class="brand" href="/">HORIZONTE<span>●</span></a><nav><a aria-current="page" href="/">Situação</a><a href="/operacao">Operação</a><a href="/api/status">Dados</a></nav></header>
+  <main id="conteudo">
+    <section class="hero"><p class="eyebrow">Resiliência comunitária / PI VI</p><h1>Informação<br>para <em>agir.</em></h1><p>Um protótipo distribuído para reunir sinais ambientais, avaliação explicável e orientações verificadas durante episódios de calor.</p></section>
+    {% if unavailable %}<div class="system-warning" role="status"><strong>DADOS TEMPORARIAMENTE INDISPONÍVEIS</strong><span>A plataforma preserva o aviso em vez de exibir informação antiga como atual.</span></div>{% endif %}
+    <section class="zone-section" aria-labelledby="zonas"><div class="section-head"><p class="eyebrow">Leitura mais recente</p><h2 id="zonas">Situação por zona</h2></div><div class="zones">{% for zone in zones %}<article class="zone {{ zone.risk_level }}"><div><span>{{ zone.zone }}</span><strong>{{ zone.risk_level|replace('atencao','atenção') }}</strong></div>{% if zone.risk_level != 'indisponivel' %}<dl><div><dt>Temperatura</dt><dd>{{ zone.temperature_c }} °C</dd></div><div><dt>Umidade</dt><dd>{{ zone.humidity_pct }}%</dd></div><div><dt>Índice estimado</dt><dd>{{ zone.heat_index_c }} °C</dd></div></dl><small>Origem: {{ zone.source_type }} · recebida há {{ zone.age_seconds }} s · algoritmo {{ zone.algorithm_version }}</small>{% elif zone.stale %}<p>A última leitura venceu. Aguarde uma nova medição antes de interpretar a situação.</p>{% else %}<p>Aguardando leitura identificada.</p>{% endif %}</article>{% endfor %}</div></section>
+    <section class="guidance" aria-labelledby="orientacoes"><div class="section-head"><p class="eyebrow">Comunicação oficial</p><h2 id="orientacoes">Orientações</h2></div>{% for bulletin in bulletins %}<article><span>{{ bulletin.zone }}</span><div><h3>{{ bulletin.title }}</h3><p>{{ bulletin.guidance }}</p></div><time>{{ bulletin.created_at }}</time></article>{% else %}<div class="empty"><strong>Nenhum boletim publicado.</strong><p>Consulte também os canais oficiais do município e dos serviços de emergência.</p></div>{% endfor %}</section>
+    <aside class="ethics"><strong>O que este painel não faz</strong><p>Não diagnostica condições de saúde, não substitui alertas oficiais e não automatiza decisões sobre pessoas. Leituras simuladas ou experimentais são sempre identificadas.</p></aside>
+  </main>
+  <footer><strong>Horizonte / protótipo responsável</strong><span>Em emergência, utilize os canais oficiais da sua localidade.</span></footer>
+</body>
+</html>
