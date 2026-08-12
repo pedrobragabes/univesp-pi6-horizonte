@@ -85,6 +85,8 @@ O painel fica em `http://127.0.0.1:3010`. Para gerar três zonas de demonstraç�
 
 Os 7 testes cobrem motor de risco, comunicação entre serviços, autenticação, CSRF, telemetria idempotente, auditoria, validação interna, expiração de dados, saúde e degradação quando o armazenamento falha.
 
+Execute a suíte a partir da raiz do repositório; os imports `common`, `gateway` e `services` dependem desse diretório de trabalho.
+
 ## Estrutura
 
 ```text
