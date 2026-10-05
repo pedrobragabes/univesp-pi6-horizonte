@@ -1,6 +1,6 @@
 # Validação técnica
 
-## Evidências executadas
+## Evidências da fundação anterior
 
 - 7 testes automatizados aprovados;
 - chamadas HTTP reais entre três aplicações durante os testes;
@@ -37,3 +37,18 @@
 7. apresentar resultados e obter decisão do parceiro: adotar, pilotar com condições ou não adotar.
 
 Critérios numéricos só devem ser fechados depois de conhecer volume, público, infraestrutura e responsabilidade do piloto.
+
+## Revisão de software — 5 de outubro de 2026
+
+- 33 testes Python aprovados no Windows; integração HTTP local entre gateway e serviços, além de contratos isolados;
+- 7 E2E com três processos HTTP separados e SQLite temporário;
+- 14 análises Axe sem violações em estados público, login, vazio, degradado e operação autenticada;
+- 1440/390/320 px, teclado, login sem JavaScript e capturas desktop/compacta inspecionados;
+- conflitos em conteúdo do evento, duas gravações concorrentes, reinício e equivalência de fuso testados;
+- 31 entregas em uma zona não removem outra do resumo; entrega atrasada não substitui observação mais recente;
+- leitura antiga recém-entregue fica indisponível; repetição já armazenada é confirmada sem serviço de avaliação;
+- entradas excessivas, tipos inválidos, segredos não ASCII e respostas internas inválidas controlados;
+- demonstrador declara dados simulados; nenhum sensor ou comunicado real;
+- auditorias Python e Node sem vulnerabilidades conhecidas.
+
+As fixtures de páginas vazia/degradada exercitam a renderização. Falha de dependência é ensaiada separadamente nos testes Python; as capturas não representam uma falha de produção. Não foram medidos carga-alvo, p95, disponibilidade de campo, custos ou aceite comunitário.

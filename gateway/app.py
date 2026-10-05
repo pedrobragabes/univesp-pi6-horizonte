@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hmac
 import os
 import re
 import secrets
@@ -10,9 +9,11 @@ from functools import wraps
 from pathlib import Path
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from common.http_client import ServiceUnavailable
 from gateway.clients import RiskClient, StoreClient
+from common.validation import bounded_number, one_of, require_recent, secret_matches
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SECRET = "development-session-secret"
@@ -38,6 +39,7 @@ def create_app(
         DEVICE_KEY=device_key or os.getenv("HORIZONTE_DEVICE_KEY", DEFAULT_DEVICE_KEY),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        MAX_CONTENT_LENGTH=8192,
     )
     internal_key = service_key or os.getenv("HORIZONTE_SERVICE_KEY", "development-service-key")
     app.config["DEVELOPMENT_CONFIG"] = (
@@ -48,6 +50,10 @@ def create_app(
     )
     store = StoreClient(store_url or os.getenv("HORIZONTE_STORE_URL", "http://127.0.0.1:3012"), internal_key)
     risk = RiskClient(risk_url or os.getenv("HORIZONTE_RISK_URL", "http://127.0.0.1:3011"), internal_key)
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def oversized_body(_error):
+        return jsonify({"error": "Mensagem excede o limite de 8192 bytes."}), 413
 
     @app.after_request
     def security_headers(response):
@@ -67,7 +73,7 @@ def create_app(
     def valid_csrf() -> bool:
         supplied = request.form.get("csrf", "")
         expected = session.get("csrf", "")
-        return bool(expected) and hmac.compare_digest(supplied, expected)
+        return bool(expected) and secret_matches(supplied, expected)
 
     def operator_required(function):
         @wraps(function)
@@ -89,16 +95,20 @@ def create_app(
         try:
             snapshot = store.snapshot()
         except (ServiceUnavailable, RuntimeError):
-            snapshot = {"readings": [], "bulletins": []}
+            snapshot = {"readings": [], "latest_readings": [], "bulletins": []}
             unavailable = True
         latest_by_zone = {}
-        for reading in snapshot["readings"]:
+        for reading in snapshot["latest_readings"]:
             if reading["zone"] in latest_by_zone:
                 continue
             item = dict(reading)
             received_at = datetime.fromisoformat(item["received_at"])
-            item["age_seconds"] = max(0, int((datetime.now(timezone.utc) - received_at).total_seconds()))
-            if item["age_seconds"] > 300:
+            now = datetime.now(timezone.utc)
+            item["age_seconds"] = max(0, int((now - received_at).total_seconds()))
+            observation_age = int((now - datetime.fromisoformat(item["observed_at"])).total_seconds())
+            item["observation_age_seconds"] = max(0, observation_age)
+            item["future"] = observation_age < -300
+            if item["age_seconds"] > 300 or abs(observation_age) > 300:
                 item["risk_level"] = "indisponivel"
                 item["stale"] = True
             latest_by_zone[item["zone"]] = item
@@ -122,7 +132,7 @@ def create_app(
     def login():
         if not valid_csrf():
             return "CSRF inválido", 400
-        if not hmac.compare_digest(request.form.get("password", ""), app.config["OPERATOR_PASSWORD"]):
+        if not secret_matches(request.form.get("password", ""), app.config["OPERATOR_PASSWORD"]):
             safe_audit("operator_login", "anonymous", "denied")
             flash("Credencial inválida.", "error")
             return redirect(url_for("operation"))
@@ -193,11 +203,13 @@ def create_app(
 
     @app.post("/api/device/readings")
     def device_reading():
-        if not hmac.compare_digest(request.headers.get("X-Device-Key", ""), app.config["DEVICE_KEY"]):
+        if not secret_matches(request.headers.get("X-Device-Key", ""), app.config["DEVICE_KEY"]):
             return jsonify({"error": "Dispositivo não autorizado."}), 401
         payload = request.get_json(silent=True)
         required = {"schema_version", "device_id", "boot_id", "sequence", "observed_at", "temperature_c_filtered", "humidity_pct_filtered", "zone"}
-        if not isinstance(payload, dict) or set(payload) != required or payload.get("schema_version") != 1 or payload.get("zone") not in ZONES:
+        if (not isinstance(payload, dict) or not required <= set(payload) <= required | {"source_type"}
+                or type(payload.get("schema_version")) is not int or payload.get("schema_version") != 1
+                or not one_of(payload.get("zone"), ZONES)):
             return jsonify({"error": "Contrato do dispositivo inválido."}), 422
         try:
             if not isinstance(payload["device_id"], str) or not DEVICE_PATTERN.fullmatch(payload["device_id"]):
@@ -206,26 +218,34 @@ def create_app(
                 raise ValueError("Identificador de inicialização inválido.")
             if isinstance(payload["sequence"], bool) or not isinstance(payload["sequence"], int) or not 0 <= payload["sequence"] <= 4_294_967_295:
                 raise ValueError("Sequência inválida.")
-            if any(isinstance(payload[field], bool) or not isinstance(payload[field], (int, float)) for field in ("temperature_c_filtered", "humidity_pct_filtered")):
-                raise ValueError("Medições do dispositivo inválidas.")
-            temperature = float(payload["temperature_c_filtered"])
-            humidity = float(payload["humidity_pct_filtered"])
-            observed = datetime.fromtimestamp(int(payload["observed_at"]), timezone.utc)
-            if abs((datetime.now(timezone.utc) - observed).total_seconds()) > 86_400:
-                raise ValueError("Horário do dispositivo fora da janela.")
+            temperature = bounded_number(payload["temperature_c_filtered"], -20, 60)
+            humidity = bounded_number(payload["humidity_pct_filtered"], 0, 100)
+            epoch = payload["observed_at"]
+            if type(epoch) is not int or not 0 <= epoch <= 4_102_444_800:
+                raise ValueError("Horário do dispositivo inválido.")
+            observed = datetime.fromtimestamp(epoch, timezone.utc)
+            source_type = payload.get("source_type", "hardware")
+            if not one_of(source_type, {"simulado", "experimental", "hardware"}):
+                raise ValueError("Origem inválida.")
+            event_id = f"{payload['device_id']}:{payload['boot_id']}:{payload['sequence']}"
+            identity = {field: payload[field] for field in ("device_id", "boot_id", "sequence")}
+            contents = {"event_id": event_id, "source_type": source_type,
+                        "zone": payload["zone"], "observed_at": observed.isoformat(),
+                        "temperature_c": temperature, "humidity_pct": humidity}
+            previous = store.find_event(event_id)
+            if previous is not None:
+                if any(previous[field] != value for field, value in contents.items()):
+                    return jsonify({"status": "conflict", "error": "Sequência já utilizada por outra leitura."}), 409
+                return jsonify({"id": previous["id"], "event_id": event_id, "status": "duplicate", **identity}), 200
+            require_recent(observed)
             assessment = risk.evaluate(temperature, humidity)
             status, body = store.add_reading({
-                "event_id": f"{payload['device_id']}:{payload['boot_id']}:{payload['sequence']}",
-                "source_type": "hardware",
-                "zone": payload["zone"],
-                "observed_at": observed.isoformat(),
-                "temperature_c": temperature,
-                "humidity_pct": humidity,
+                **contents,
                 "heat_index_c": assessment["heat_index_c"],
                 "risk_level": assessment["level"],
                 "algorithm_version": assessment["algorithm_version"],
             })
-            return jsonify(body), status
+            return jsonify({**body, **identity} if status in {200, 201} else body), status
         except ValueError:
             return jsonify({"error": "Leitura do dispositivo inválida."}), 422
         except (OverflowError, OSError, RuntimeError, ServiceUnavailable):
@@ -255,7 +275,5 @@ def create_app(
     return app
 
 
-app = create_app()
-
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=3010, debug=False)
+    create_app().run(host="127.0.0.1", port=3010, debug=False)

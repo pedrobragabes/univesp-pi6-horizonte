@@ -14,7 +14,7 @@ O projeto é uma fundação para o **Projeto Integrador em Computação VI (PJI6
 
 | Dimensão | Situação |
 |---|---|
-| fundação técnica | concluída, com 7 testes distribuídos e release `v0.1.0-foundation` |
+| fundação técnica | revisada: 33 testes Python, 7 E2E e 14 análises Axe; revisão `0.1.1`, sem entrega acadêmica final |
 | entrega acadêmica | pendente de parceiro, usuários, carga, cotações, relatório e vídeo |
 | dados | zonas e leituras exclusivamente demonstrativas |
 | implantação | arquitetura reproduzível local; produção não preparada |
@@ -22,13 +22,13 @@ O projeto é uma fundação para o **Projeto Integrador em Computação VI (PJI6
 ## Produto
 
 - painel público com situação normal, atenção, alerta ou indisponível por zona;
-- expiração de leituras após cinco minutos para evitar falsa atualidade;
+- expiração por idade da observação e da entrega após cinco minutos para evitar falsa atualidade;
 - área operacional protegida por senha, sessão, CSRF e papéis;
 - registro manual sempre identificado como simulado ou experimental;
 - boletins operacionais separados da recomendação algorítmica;
 - API de dispositivo compatível com um recorte do contrato do Sentinela;
 - avaliação por índice de calor em serviço independente e versionado;
-- serviço de registro com SQLite, idempotência e auditoria mínima;
+- serviço de registro com SQLite, recibos persistentes, rejeição de conflitos e auditoria mínima;
 - saúde agregada das dependências e degradação explícita;
 - testes entre processos HTTP reais e CI.
 
@@ -83,7 +83,19 @@ O painel fica em `http://127.0.0.1:3010`. Para gerar três zonas de demonstraç�
 .\.venv\Scripts\python.exe -m compileall -q common gateway services tests
 ```
 
-Os 7 testes cobrem motor de risco, comunicação entre serviços, autenticação, CSRF, telemetria idempotente, auditoria, validação interna, expiração de dados, saúde e degradação quando o armazenamento falha.
+Os 33 testes Python cobrem autenticação/CSRF, contratos internos e dispositivo, conflito/concorrência, recibo após reinício, normalização UTC, resumo de todas as zonas, expiração e degradação. O cliente HTTP rejeita respostas não JSON, não objetos, excessivas ou com contrato inválido.
+
+Execute a suíte a partir da raiz do repositório; os imports `common`, `gateway` e `services` dependem desse diretório de trabalho.
+
+Para testar o navegador, instale Node.js 22 ou superior:
+
+```powershell
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+A fixture inicia três processos HTTP separados em loopback (3487/3488/3489), com dados e boletins sintéticos em SQLite temporário. Os 7 E2E verificam 1440/390/320 px, teclado, estados público/vazio/degradado/login, operação completa e login sem JavaScript. As 14 análises Axe não tiveram violações nos estados testados; isso não substitui leitores de tela e validação com participantes.
 
 ## Estrutura
 
@@ -108,6 +120,12 @@ docs/         arquitetura, operação, validação, viabilidade, ética e revis�
 - [Revisão de código](docs/06-revisao-de-codigo.md)
 - [Modelo de relatório parcial](docs/07-relatorio-parcial.md)
 - [Modelo de relatório final](docs/08-relatorio-final.md)
+
+## Retransmissão e origem
+
+Uma repetição exatamente igual recebe o mesmo ID; conteúdo diferente na mesma identidade recebe 409. O gateway consulta o evento antes de recalcular a avaliação, permitindo confirmar uma entrega já armazenada quando a avaliação estiver indisponível. Leituras novas continuam sujeitas à janela de 24 horas e disponibilidade dos serviços. A origem pode ser declarada em `source_type`; o simulador usa `simulado`. Mensagens antigas sem esse campo mantêm o padrão `hardware` do contrato anterior; isso é uma declaração, não prova de sensor conectado ou calibrado.
+
+O resumo por zona é separado do histórico limitado a 30 leituras; uma zona movimentada não exclui as outras. Observação antiga ou relógio adiantado fica indisponível, mesmo com entrega recente.
 
 ## Limites para implantação
 
