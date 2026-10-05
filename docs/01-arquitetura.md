@@ -33,7 +33,7 @@ O índice de calor usa temperatura e umidade e retorna explicação, versão e a
 
 ### D3 — expiração em vez de confiança infinita
 
-Uma leitura com mais de cinco minutos deixa de sustentar o estado da zona. O painel mostra `indisponível`, preservando a distinção entre ausência de alerta e ausência de dados.
+Uma observação ou entrega com mais de cinco minutos deixa de sustentar o estado da zona. O painel mostra `indisponível`, preservando a distinção entre ausência de alerta e ausência de dados.
 
 ### D4 — ausência de dados pessoais
 
@@ -46,3 +46,13 @@ Se o registro cair, a página pública continua disponível com aviso, enquanto 
 ## Evolução
 
 Antes de escala real: PostgreSQL, fila/outbox, identidades individuais, segredo por dispositivo, observabilidade central, múltiplas instâncias sem estado e cache de conteúdo público. Cada mudança precisa de critério mensurável; “microserviços” não é um objetivo isolado.
+
+## Contratos revisados em 5 de outubro de 2026
+
+O snapshot inclui `latest_readings`, independente dos últimos 30 registros, selecionado por instante observado por zona. O registro também fornece consulta autenticada de evento em `GET /v1/readings/<event_id>`. O gateway valida ambos os contratos e exige recibo com evento, ID positivo e status correspondente ao HTTP. Atualizar primeiro o registro e depois o gateway.
+
+A chave de idempotência identifica conteúdo imutável: repetição exata mantém ID; conflito retorna 409 sem sobrescrita. Datas equivalentes em fusos diferentes são normalizadas em UTC. O gateway confirma evento existente antes de chamar o motor; uma nova leitura não é armazenada quando falta avaliação válida. Origens `simulado`, `experimental` e `hardware` são declarações do emissor, não certificações.
+
+## Limites da regra experimental de avaliação
+
+O `heat-index-v1` usa o polinômio de Rothfusz somente com temperatura de pelo menos 26,7 °C e umidade de pelo menos 40%; nos demais casos retorna a temperatura. Essa simplificação omite ajustes e seleção completa descritos pelo [NWS](https://www.weather.gov/tbw/heatindex), que também registra limites da regressão. O método não deve ser apresentado como implementação completa do NWS, previsão oficial ou avaliação clínica. Os cortes de 32/40 °C são hipóteses do protótipo, sem validação para a comunidade. Resultados fora do contrato interno não são utilizados como avaliação válida. O procedimento e as fontes precisam ser revistos com responsáveis antes de qualquer piloto real.

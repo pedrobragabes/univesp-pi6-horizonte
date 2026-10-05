@@ -67,7 +67,7 @@ O cliente lia `HTTPError`, mas não fechava seu stream, gerando aviso de recurso
 - algoritmo e sensor sem validação para uso real;
 - sem teste de carga, pentest ou usuários nesta fundação.
 
-## Evidências
+## Evidências da fundação anterior
 
 - 7 testes aprovados;
 - integração HTTP real nos testes;
@@ -79,3 +79,15 @@ O cliente lia `HTTPError`, mas não fechava seu stream, gerando aviso de recurso
 ## Parecer
 
 A fundação está adequada para publicação como plataforma distribuída demonstrativa. Ela não deve ser implantada para comunicação crítica antes de validação com parceiro, infraestrutura endurecida, ensaios de carga/segurança/acessibilidade e definição formal de responsabilidades.
+
+## Revisão de contratos — 5 de outubro de 2026
+
+- **R6:** duplicata confirmava conteúdo diferente; comparação normalizada em transação reservada agora retorna conflito, preserva original e repete o mesmo recibo após reinício.
+- **R7:** limite de 30 eventos podia apagar zonas e entrega atrasada parecia atual; resumo por zona usa observação, com expiração e relógio adiantado explícitos.
+- **R8:** repetição dependia de recalcular avaliação; consulta autenticada de evento permite confirmar registro existente durante falha do motor.
+- **R9:** respostas HTML/JSON inválido/contrato incompleto causavam erro ou uso indevido; cliente limita tamanho, valida tipos e recibos e degrada com mensagem controlada.
+- **R10:** tipos compostos, inteiros extremos e segredo não ASCII podiam causar 500; validação comum controla tipos/faixas e compara bytes UTF-8. Versão e timestamp do dispositivo são inteiros estritos.
+- **R11:** simulador aparecia como hardware; origem simulada explícita e linguagem sem alegação de comunicação oficial/verificação física.
+- **R12:** contraste, foco e tipografia em telas pequenas inadequados; contraste ajustado, regiões de formulário nomeadas e títulos cabem em 320 px.
+
+Verificação: 33 Python, 7 E2E, 14 Axe sem violações nos estados testados, auditorias Python/Node sem alertas e capturas desktop/compacta inspecionadas. As chamadas HTTP dos testes Python usam servidores em threads; o E2E usa três processos separados. Fila persistente, auditoria garantida, identidades individuais, limite de tentativas, produção, sensor, cotações e validação comunitária continuam pendentes. O método de avaliação permanece experimental e simplificado, sem certificação ou validação local.

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import hmac
-import math
 import os
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
+from common.validation import bounded_number, secret_matches
 
 ALGORITHM_VERSION = "heat-index-v1"
 DEFAULT_SERVICE_KEY = "development-service-key"
@@ -25,10 +25,8 @@ def heat_index_celsius(temperature_c: float, humidity_pct: float) -> float:
 
 
 def evaluate(temperature_c: float, humidity_pct: float) -> dict:
-    if not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) for value in (temperature_c, humidity_pct)):
-        raise ValueError("Temperatura e umidade devem ser números finitos.")
-    if not -20 <= temperature_c <= 60 or not 0 <= humidity_pct <= 100:
-        raise ValueError("Medição fora das faixas aceitas pelo experimento.")
+    temperature_c = bounded_number(temperature_c, -20, 60)
+    humidity_pct = bounded_number(humidity_pct, 0, 100)
     heat_index = round(heat_index_celsius(float(temperature_c), float(humidity_pct)), 1)
     if heat_index >= 40:
         level = "alerta"
@@ -52,6 +50,11 @@ def evaluate(temperature_c: float, humidity_pct: float) -> dict:
 def create_app(service_key: str | None = None) -> Flask:
     app = Flask(__name__)
     app.config["SERVICE_KEY"] = service_key or os.getenv("HORIZONTE_SERVICE_KEY", DEFAULT_SERVICE_KEY)
+    app.config["MAX_CONTENT_LENGTH"] = 8192
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def oversized_body(_error):
+        return jsonify({"error": "Mensagem excede o limite de 8192 bytes."}), 413
 
     @app.after_request
     def headers(response):
@@ -65,7 +68,7 @@ def create_app(service_key: str | None = None) -> Flask:
 
     @app.post("/v1/evaluate")
     def evaluate_route():
-        if not hmac.compare_digest(request.headers.get("X-Service-Key", ""), app.config["SERVICE_KEY"]):
+        if not secret_matches(request.headers.get("X-Service-Key", ""), app.config["SERVICE_KEY"]):
             return jsonify({"error": "Serviço não autorizado."}), 401
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict) or set(payload) != {"temperature_c", "humidity_pct"}:
@@ -78,7 +81,5 @@ def create_app(service_key: str | None = None) -> Flask:
     return app
 
 
-app = create_app()
-
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=3011, debug=False)
+    create_app().run(host="127.0.0.1", port=3011, debug=False)

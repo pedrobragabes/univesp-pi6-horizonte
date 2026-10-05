@@ -24,8 +24,10 @@ class LocalServer:
         self.thread.start()
 
     def stop(self):
-        self.server.shutdown()
-        self.thread.join(timeout=3)
+        if self.thread.is_alive():
+            self.server.shutdown()
+            self.thread.join(timeout=3)
+        self.server.server_close()
 
 
 class HorizonteTest(unittest.TestCase):
@@ -142,6 +144,75 @@ class HorizonteTest(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("DADOS TEMPORARIAMENTE INDISPONÍVEIS", page.get_data(as_text=True))
         self.assertEqual(unavailable.get("/api/status").status_code, 503)
+
+    def device_payload(self, sequence=40, zone="Central"):
+        return {"schema_version": 1, "device_id": "sentinela-test-01", "boot_id": "a1b2c3d4",
+                "sequence": sequence, "observed_at": int(time.time()),
+                "temperature_c_filtered": 30, "humidity_pct_filtered": 60, "zone": zone}
+
+    def post_device(self, payload, key=None):
+        return self.client.post("/api/device/readings", json=payload,
+                                headers={"X-Device-Key": self.device_key if key is None else key})
+
+    def test_device_sequence_conflict_is_rejected_without_replacing_data(self):
+        payload = self.device_payload()
+        self.assertEqual(self.post_device(payload).status_code, 201)
+        self.assertEqual(self.post_device({**payload, "temperature_c_filtered": 35}).status_code, 409)
+        with database(self.database_path) as connection:
+            self.assertEqual(connection.execute("SELECT temperature_c FROM readings").fetchone()[0], 30)
+
+    def test_stored_retry_can_be_confirmed_while_risk_service_is_unavailable(self):
+        payload = self.device_payload()
+        first = self.post_device(payload).get_json()
+        self.risk_server.stop()
+        health = self.client.get("/health")
+        self.assertEqual(health.status_code, 503)
+        self.assertFalse(health.get_json()["dependencies"]["risk"])
+        duplicate = self.post_device(payload)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(duplicate.get_json()["id"], first["id"])
+
+    def test_device_types_are_strict_and_do_not_cause_internal_errors(self):
+        for field, values in {"schema_version": (True, 1.0), "observed_at": (True, "1", 1.5, 10**500),
+                              "zone": ([], {}), "temperature_c_filtered": (10**500, float("inf"))}.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    self.assertEqual(self.post_device({**self.device_payload(), field: value}).status_code, 422)
+
+    def test_unicode_credentials_and_csrf_are_controlled_failures(self):
+        self.assertEqual(self.post_device(self.device_payload(), key="inválida").status_code, 401)
+        self.client.get("/operacao")
+        self.assertEqual(self.client.post("/login", data={"csrf": "inválido", "password": "wrong"}).status_code, 400)
+        denied = self.client.post("/login", data={"csrf": self.csrf(), "password": "inválida"}, follow_redirects=True)
+        self.assertEqual(denied.status_code, 200)
+        self.assertIn("Credencial inválida", denied.get_data(as_text=True))
+
+    def test_old_observation_is_unavailable_even_if_it_just_arrived(self):
+        payload = self.device_payload()
+        payload["observed_at"] -= 600
+        self.assertEqual(self.post_device(payload).status_code, 201)
+        self.assertIn("A última leitura venceu", self.client.get("/").get_data(as_text=True))
+
+    def test_delayed_delivery_does_not_replace_a_newer_zone_observation(self):
+        newest = self.device_payload(40)
+        oldest = {**self.device_payload(41), "observed_at": newest["observed_at"] - 600}
+        self.assertEqual(self.post_device(newest).status_code, 201)
+        self.assertEqual(self.post_device(oldest).status_code, 201)
+        snapshot = self.client.get("/api/status").get_json()
+        self.assertEqual(snapshot["latest_readings"][0]["event_id"], "sentinela-test-01:a1b2c3d4:40")
+        self.assertNotIn("A última leitura venceu", self.client.get("/").get_data(as_text=True))
+
+    def test_simulator_source_is_explicit_and_preserved(self):
+        payload = {**self.device_payload(), "source_type": "simulado"}
+        self.assertEqual(self.post_device(payload).status_code, 201)
+        snapshot = self.client.get("/api/status").get_json()
+        self.assertEqual(snapshot["readings"][0]["source_type"], "simulado")
+
+    def test_oversized_device_body_is_a_controlled_rejection(self):
+        response = self.client.post("/api/device/readings", data=" " * 9000,
+                                    content_type="application/json", headers={"X-Device-Key": self.device_key})
+        self.assertEqual(response.status_code, 413)
+        self.assertIsInstance(response.get_json(), dict)
 
 
 if __name__ == "__main__":

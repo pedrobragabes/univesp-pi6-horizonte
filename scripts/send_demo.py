@@ -27,6 +27,7 @@ def main() -> None:
             "temperature_c_filtered": temperature,
             "humidity_pct_filtered": humidity,
             "zone": zone,
+            "source_type": "simulado",
         }
         request = urllib.request.Request(
             f"{url}/api/device/readings",
